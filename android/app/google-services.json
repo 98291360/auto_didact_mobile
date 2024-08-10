@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "207820850340",
+    "project_id": "autodidact-a0c84",
+    "storage_bucket": "autodidact-a0c84.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:207820850340:android:dd2776fb59bf9e537a5231",
+        "android_client_info": {
+          "package_name": "com.example.autodidact_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD683qV4OJ2Bq4WQsewgjuIa1fvIuyob_Y"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
