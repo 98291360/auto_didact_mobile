@@ -8,8 +8,8 @@ class QuranPage extends StatefulWidget {
 }
 
 class _QuranPageState extends State<QuranPage> {
-  String quranText = '';
   List<String> pages = [];
+  Color textColor = Colors.white;
 
   @override
   void initState() {
@@ -55,12 +55,56 @@ class _QuranPageState extends State<QuranPage> {
     }
   }
 
+  void _showColorPicker() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('Choisissez la couleur du texte'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                _colorOption(Colors.white, 'Blanc'),
+                _colorOption(Colors.black, 'Noir'),
+                _colorOption(Color.fromARGB(255, 85, 191, 210), 'Bleu clair'),
+                _colorOption(Colors.blue, 'Bleu'),
+                _colorOption(Colors.green, 'Vert'),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _colorOption(Color color, String colorName) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: color,
+      ),
+      title: Text(colorName),
+      onTap: () {
+        setState(() {
+          textColor = color;
+        });
+        Navigator.pop(context); // Close the dialog
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Texte du Coran'),
         backgroundColor: const Color(0xFF4CADA0),
+        actions: [
+          IconButton(
+            icon: Icon(Icons.more_vert), // Trois points verticaux
+            onPressed: _showColorPicker,
+          ),
+        ],
       ),
       body: pages.isNotEmpty
           ? PageView.builder(
@@ -82,8 +126,8 @@ class _QuranPageState extends State<QuranPage> {
                     child: Text(
                       pages[index],
                       style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20.0,
+                        color: textColor,
+                        fontSize: 29.0,
                         fontWeight: FontWeight.normal,
                       ),
                       textAlign:
