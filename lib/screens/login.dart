@@ -169,7 +169,7 @@ class _LoginPageState extends State<LoginPage> {
         ),
       ),
     );
-  }
+  } 
    void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:autodidact_app/screens/homme.dart';
 import 'package:autodidact_app/screens/login.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -47,7 +48,7 @@ class _MyAppState extends State<MyApp> {
               secondary: Color(0xFF25D366),
             ),
       ),
-      home: isLoading ? LoadingScreen() : LoginPage(),
+      home: isLoading ? LoadingScreen() : HomePage(),
     );
   }
 }
