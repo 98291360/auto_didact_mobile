@@ -30,9 +30,16 @@ class _QuranPageState extends State<QuranPage> {
         if (element.nodeType == xml.XmlNodeType.ELEMENT) {
           final elementName = (element as xml.XmlElement).name.toString();
           if (elementName == 'aya') {
-            buffer.write((element as xml.XmlElement)
-                .getAttribute('text')); // Get text attribute
-            buffer.write(' '); // Add space between verses
+            String verseText =
+                (element as xml.XmlElement).getAttribute('text') ??
+                    ''; // Get text attribute or default to empty string
+            String verseIndex =
+                (element as xml.XmlElement).getAttribute('index') ??
+                    ''; // Get index attribute or default to empty string
+
+            buffer.write(verseText);
+            buffer.write(' ');
+            buffer.write('۞$verseIndex '); // Append the verse number
           } else if (elementName == 'page_end') {
             if (buffer.isNotEmpty) {
               pagesList.add(buffer.toString().trim());
@@ -67,9 +74,9 @@ class _QuranPageState extends State<QuranPage> {
               children: <Widget>[
                 _colorOption(Colors.white, 'Blanc'),
                 _colorOption(Colors.black, 'Noir'),
-                _colorOption(Color.fromARGB(255, 85, 191, 210), 'Bleu clair'),
+                /*               _colorOption(Color.fromARGB(255, 85, 191, 210), 'Bleu clair'),
                 _colorOption(Colors.blue, 'Bleu'),
-                _colorOption(Colors.green, 'Vert'),
+                _colorOption(Colors.green, 'Vert'), */
               ],
             ),
           ),
@@ -105,12 +112,12 @@ class _QuranPageState extends State<QuranPage> {
             onPressed: _showColorPicker,
           ), */
           PopupMenuButton(
-            surfaceTintColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
             elevation: 2,
             itemBuilder: (BuildContext context) {
               return [
                 PopupMenuItem(
-                  onTap: () => {_showColorPicker},
+                  onTap: () => {_showColorPicker()},
                   child: Text('Changer la couleur du texte'),
                 ),
                 PopupMenuItem(
@@ -127,7 +134,7 @@ class _QuranPageState extends State<QuranPage> {
                 ),
                 PopupMenuItem(
                   onTap: () => {},
-                  child: Text('Ajouter un décaissement'),
+                  child: Text('Les surates'),
                 ),
               ];
             },
@@ -136,6 +143,7 @@ class _QuranPageState extends State<QuranPage> {
       ),
       body: pages.isNotEmpty
           ? PageView.builder(
+              reverse: true,
               itemCount: pages.length,
               itemBuilder: (context, index) {
                 return Container(
@@ -160,6 +168,7 @@ class _QuranPageState extends State<QuranPage> {
                       ),
                       textAlign:
                           TextAlign.right, // Alignement à droite pour l'arabe
+                      textDirection: TextDirection.rtl,
                     ),
                   ),
                 );
