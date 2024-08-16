@@ -100,9 +100,37 @@ class _QuranPageState extends State<QuranPage> {
         title: Text('Texte du Coran'),
         backgroundColor: const Color(0xFF4CADA0),
         actions: [
-          IconButton(
+          /*    IconButton(
             icon: Icon(Icons.more_vert), // Trois points verticaux
             onPressed: _showColorPicker,
+          ), */
+          PopupMenuButton(
+            surfaceTintColor: Colors.white,
+            elevation: 2,
+            itemBuilder: (BuildContext context) {
+              return [
+                PopupMenuItem(
+                  onTap: () => {_showColorPicker},
+                  child: Text('Changer la couleur du texte'),
+                ),
+                PopupMenuItem(
+                  onTap: () => {},
+                  child: Text('Régler la luminosité'),
+                ),
+                PopupMenuItem(
+                  onTap: () => {},
+                  child: Text('Sauvegarder la page'),
+                ),
+                PopupMenuItem(
+                  onTap: () => {},
+                  child: Text('Aller à la page'),
+                ),
+                PopupMenuItem(
+                  onTap: () => {},
+                  child: Text('Ajouter un décaissement'),
+                ),
+              ];
+            },
           ),
         ],
       ),
