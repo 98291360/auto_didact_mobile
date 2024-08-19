@@ -23,36 +23,56 @@ class _QuranPageState extends State<QuranPage> {
           await rootBundle.loadString('assets/quran-uthmani.xml');
       final document = xml.XmlDocument.parse(xmlString);
 
-      List<String> pagesList = [];
+      List<String> fullTextList = [];
       StringBuffer buffer = StringBuffer();
+
+      String? currentSuraName;
+      String? currentSuraIndex;
+      int verseCount = 0;
 
       for (var element in document.descendants) {
         if (element.nodeType == xml.XmlNodeType.ELEMENT) {
           final elementName = (element as xml.XmlElement).name.toString();
-          if (elementName == 'aya') {
-            String verseText =
-                (element as xml.XmlElement).getAttribute('text') ??
-                    ''; // Get text attribute or default to empty string
-            String verseIndex =
-                (element as xml.XmlElement).getAttribute('index') ??
-                    ''; // Get index attribute or default to empty string
+          if (elementName == 'sura') {
+            // Start of a new sura
+            if (currentSuraName != null) {
+              // Add the last sura's verses to the list
+              if (buffer.isNotEmpty) {
+                fullTextList.add(buffer.toString().trim());
+                buffer.clear();
+              }
+            }
+            // Add the sura header immediately
+            currentSuraName = element.getAttribute('name');
+            currentSuraIndex = element.getAttribute('index');
+            verseCount = 0;
 
+            // Add the sura header to the buffer directly
+            buffer.write(_buildSuraHeader(
+                currentSuraName, currentSuraIndex, verseCount));
+          } else if (elementName == 'aya') {
+            String verseText = element.getAttribute('text') ?? '';
+            String verseIndex = element.getAttribute('index') ?? '';
             buffer.write(verseText);
             buffer.write(' ');
-            buffer.write('۞$verseIndex '); // Append the verse number
+            buffer.write('۞$verseIndex ');
+            verseCount++;
           } else if (elementName == 'page_end') {
             if (buffer.isNotEmpty) {
-              pagesList.add(buffer.toString().trim());
+              fullTextList.add(buffer.toString().trim());
               buffer.clear();
             }
           }
         }
       }
 
-      // Add the last page if it exists
+      // Add the last part if it exists
       if (buffer.isNotEmpty) {
-        pagesList.add(buffer.toString().trim());
+        fullTextList.add(buffer.toString().trim());
       }
+
+      // Divide text into pages based on screen size
+      List<String> pagesList = _splitTextIntoPages(fullTextList);
 
       setState(() {
         pages = pagesList;
@@ -60,6 +80,45 @@ class _QuranPageState extends State<QuranPage> {
     } catch (e) {
       print('Error loading XML: $e');
     }
+  }
+
+  String _buildSuraHeader(String? name, String? index, int verseCount) {
+    return '\n\nسورة $name\n(آيات: $verseCount)\t\tرقم السورة: $index\n\n';
+  }
+
+  List<String> _splitTextIntoPages(List<String> fullTextList) {
+    List<String> pagesList = [];
+    final screenHeight = MediaQuery.of(context).size.height;
+    final screenWidth = MediaQuery.of(context).size.width;
+    final TextPainter textPainter = TextPainter(
+      textDirection: TextDirection.rtl,
+      textAlign: TextAlign.justify,
+    );
+
+    StringBuffer buffer = StringBuffer();
+    for (String text in fullTextList) {
+      textPainter.text = TextSpan(
+        text: buffer.toString() + text,
+        style: TextStyle(
+          fontSize: 29.0,
+        ),
+      );
+
+      textPainter.layout(maxWidth: screenWidth - 32); // Subtract padding
+
+      if (textPainter.height > screenHeight - 32) {
+        pagesList.add(buffer.toString().trim());
+        buffer.clear();
+      }
+
+      buffer.write(text + ' ');
+    }
+
+    if (buffer.isNotEmpty) {
+      pagesList.add(buffer.toString().trim());
+    }
+
+    return pagesList;
   }
 
   void _showColorPicker() {
@@ -74,9 +133,6 @@ class _QuranPageState extends State<QuranPage> {
               children: <Widget>[
                 _colorOption(Colors.white, 'Blanc'),
                 _colorOption(Colors.black, 'Noir'),
-                /*               _colorOption(Color.fromARGB(255, 85, 191, 210), 'Bleu clair'),
-                _colorOption(Colors.blue, 'Bleu'),
-                _colorOption(Colors.green, 'Vert'), */
               ],
             ),
           ),
@@ -107,33 +163,29 @@ class _QuranPageState extends State<QuranPage> {
         title: Text('Texte du Coran'),
         backgroundColor: const Color(0xFF4CADA0),
         actions: [
-          /*    IconButton(
-            icon: Icon(Icons.more_vert), // Trois points verticaux
-            onPressed: _showColorPicker,
-          ), */
           PopupMenuButton(
             surfaceTintColor: Colors.transparent,
             elevation: 2,
             itemBuilder: (BuildContext context) {
               return [
                 PopupMenuItem(
-                  onTap: () => {_showColorPicker()},
+                  onTap: _showColorPicker,
                   child: Text('Changer la couleur du texte'),
                 ),
                 PopupMenuItem(
-                  onTap: () => {},
+                  onTap: () {},
                   child: Text('Régler la luminosité'),
                 ),
                 PopupMenuItem(
-                  onTap: () => {},
+                  onTap: () {},
                   child: Text('Sauvegarder la page'),
                 ),
                 PopupMenuItem(
-                  onTap: () => {},
+                  onTap: () {},
                   child: Text('Aller à la page'),
                 ),
                 PopupMenuItem(
-                  onTap: () => {},
+                  onTap: () {},
                   child: Text('Les surates'),
                 ),
               ];
@@ -158,18 +210,16 @@ class _QuranPageState extends State<QuranPage> {
                       end: Alignment.bottomCenter,
                     ),
                   ),
-                  child: SingleChildScrollView(
-                    child: Text(
-                      pages[index],
-                      style: TextStyle(
-                        color: textColor,
-                        fontSize: 29.0,
-                        fontWeight: FontWeight.normal,
-                      ),
-                      textAlign:
-                          TextAlign.right, // Alignement à droite pour l'arabe
-                      textDirection: TextDirection.rtl,
+                  child: Text(
+                    pages[index],
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 29.0,
+                      fontWeight: FontWeight.normal,
                     ),
+                    textAlign:
+                        TextAlign.right, // Alignement à droite pour l'arabe
+                    textDirection: TextDirection.rtl,
                   ),
                 );
               },
