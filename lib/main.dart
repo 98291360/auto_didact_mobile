@@ -6,14 +6,11 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/material.dart';
 
-
 void main() async {
- WidgetsFlutterBinding.ensureInitialized();
+  WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
   runApp(MyApp());
 }
-
-
 
 class MyApp extends StatefulWidget {
   @override
@@ -34,8 +31,6 @@ class _MyAppState extends State<MyApp> {
       });
     });
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -63,11 +58,11 @@ class LoadingScreen extends StatelessWidget {
           children: [
             SizedBox(height: 200),
 
-           Icon(
-                  Icons.school,
-                  size: 100.0,
-                  color: Colors.blue,
-                ),
+            Icon(
+              Icons.school,
+              size: 100.0,
+              color: Colors.blue,
+            ),
             Text(
               "mou'allimiy".toUpperCase(),
               style: TextStyle(
