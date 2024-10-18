@@ -5,10 +5,29 @@ import 'package:autodidact_app/screens/login.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:timezone/timezone.dart' as tz;
+import 'package:timezone/data/latest.dart' as tzData;
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
+  // Initialiser les notifications locales
+  WidgetsFlutterBinding.ensureInitialized();
+
+  FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+      FlutterLocalNotificationsPlugin();
+  const AndroidInitializationSettings initializationSettingsAndroid =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+
+  const InitializationSettings initializationSettings = InitializationSettings(
+    android: initializationSettingsAndroid,
+  );
+
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+  // Initialiser la timezone
+  tzData.initializeTimeZones();
   runApp(MyApp());
 }
 
@@ -36,7 +55,7 @@ class _MyAppState extends State<MyApp> {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Mou\'allimiy',
+      title: 'اقرا',
       theme: ThemeData(
         primaryColor: Color(0xFF075E54),
         colorScheme: ThemeData().colorScheme.copyWith(
@@ -64,7 +83,7 @@ class LoadingScreen extends StatelessWidget {
               color: Colors.blue,
             ),
             Text(
-              "mou'allimiy".toUpperCase(),
+              "اقرا".toUpperCase(),
               style: TextStyle(
                   color: Colors.blue,
                   fontSize: 20,

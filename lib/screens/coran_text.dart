@@ -3,32 +3,39 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:xml/xml.dart' as xml;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:quran/quran.dart' as quran;
 
 class QuranPage extends StatefulWidget {
   @override
   _QuranPageState createState() => _QuranPageState();
 }
 
-class _QuranPageState extends State<QuranPage> {
+class _QuranPageState extends State<QuranPage> with WidgetsBindingObserver {
   List<List<Widget>> pages =
       []; // Modifié pour contenir une liste de widgets pour chaque page
-  Color textColor = Colors.white;
+  Color textColor = Colors.black;
   int currentPageIndex = 0;
+  int currentPage = 0;
+
+  int indexCurrentSurat = 0;
+  Map<int, String> suraIndexes = {};
   late PageController _pageController;
   SharedPreferences? prefs;
+  double _fontSize = 25.0; // Taille de police par défaut
+  String? currentSuraName;
+  String? currentSura;
 
-  @override
-  void initState() {
-    super.initState();
-    loadQuranText();
-    _pageController = PageController();
+  bool _isAppBarVisible = false;
+  Map<int, String> sourateNames = {};
 
-    // Écouteur pour mettre à jour l'index de la page courante
-    _pageController.addListener(() {
+  Future<void> loadSavedTextColor() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    int? savedColor = prefs.getInt('textColor');
+    if (savedColor != null) {
       setState(() {
-        currentPageIndex = _pageController.page!.round();
+        textColor = Color(savedColor);
       });
-    });
+    }
   }
 
   Future<void> loadQuranText() async {
@@ -39,7 +46,6 @@ class _QuranPageState extends State<QuranPage> {
 
       List<List<Widget>> pagesList = [];
       List<Widget> currentPageWidgets = [];
-      String? currentSuraName;
       String? currentSuraIndex;
       String? currentSurateAyat;
       StringBuffer buffer = StringBuffer();
@@ -52,22 +58,22 @@ class _QuranPageState extends State<QuranPage> {
           final elementName = (element as xml.XmlElement).name.toString();
 
           if (elementName == 'sura') {
-            // Si on a déjà un nom de sourate, on ajoute l'entête de la sourate courante
-            /*   if (currentSuraName != null) {
-              String suraHeader = _buildSuraHeader(
-                  currentSuraName, currentSuraIndex, verseCount);
-              currentPageWidgets.add(_buildSuraHeaderWidget(suraHeader));
-
-              // Ajouter Bismillah si ce n'est pas la sourate At-Tawbah (index=9)
-              if (currentSuraIndex != '9') {
-                currentPageWidgets.add(_buildBismillahWidget());
-              }
-            } */
-
             currentSuraName = element.getAttribute('name');
             currentSuraIndex = element.getAttribute('index');
             currentSurateAyat = element.getAttribute('aya') ?? '';
-            isSuraHeaderAdded = false; // Réinitialiser le flag
+            indexCurrentSurat = int.parse(element.getAttribute('page')!);
+
+            // Ajoutez l'index de la sourate à la liste
+            suraIndexes[indexCurrentSurat] = currentSuraName!;
+            isSuraHeaderAdded = false;
+
+            setState(() {
+              sourateNames[indexCurrentSurat] = element.getAttribute('name')!;
+
+              if ((currentPageIndex + 1) == indexCurrentSurat) {
+                currentSura = element.getAttribute('name');
+              }
+            });
           } else if (elementName == 'aya') {
             // Ajouter l'entête de la sourate au début des versets de cette sourate
             if (!isSuraHeaderAdded && currentSuraName != null) {
@@ -111,7 +117,55 @@ class _QuranPageState extends State<QuranPage> {
     }
   }
 
-// Widget pour le Bismillah
+  // Fonction pour obtenir le nom de la sourate en fonction de la page actuelle
+  String getCurrentSura(int currentPageIndex) {
+    int lastSuraStartPage = 0;
+
+    // Parcours les index de début de chaque sourate
+    for (var entry in suraIndexes.entries) {
+      int suraStartPage = entry.key;
+
+      // Si la page actuelle est entre la dernière sourate et la suivante
+      if (currentPageIndex >= lastSuraStartPage &&
+          currentPageIndex < suraStartPage) {
+        return suraIndexes[lastSuraStartPage] ?? "Nom de sourate non trouvé";
+      }
+
+      // Met à jour le dernier début de sourate
+      lastSuraStartPage = suraStartPage;
+    }
+
+    // Si la page est après la dernière sourate dans la liste
+    return suraIndexes[lastSuraStartPage] ?? "Nom de sourate non trouvé";
+  }
+
+  void _onPageChanged(int pageIndex) {
+    setState(() {
+      currentPageIndex = pageIndex;
+      _saveOnLeaveCurrentPage(currentPageIndex + 1);
+
+      // Mettre à jour le nom de la sourate en fonction de la page actuelle
+      currentSura = getCurrentSura(currentPageIndex + 1);
+
+      print('Sourate actuelle: $currentSura');
+    });
+  }
+
+  Future<void> _saveOnLeaveCurrentPage(int value) async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('savedOnLeavePage', currentPageIndex);
+    print('Page sauvegardée: $currentPageIndex');
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _pageController = PageController(initialPage: currentPageIndex);
+    loadSavedTextColor(); // Charger la couleur sauvegardée
+    loadQuranText();
+    _loadOnLeavePage();
+  }
+
 // Widget pour afficher le Bismillah
   Widget _buildBismillahWidget() {
     return Padding(
@@ -119,9 +173,10 @@ class _QuranPageState extends State<QuranPage> {
       child: Text(
         'بِسْمِ ٱللَّهِ ٱلرَّحْمَـٰنِ ٱلرَّحِيمِ',
         style: TextStyle(
-          fontSize: 24.0,
-          fontWeight: FontWeight.w500,
+          fontSize: _fontSize,
+          fontWeight: FontWeight.bold,
           color: textColor,
+          fontFamily: 'Kitab',
         ),
         textAlign: TextAlign.center,
         textDirection: TextDirection.rtl,
@@ -129,9 +184,15 @@ class _QuranPageState extends State<QuranPage> {
     );
   }
 
+  int getHizbNumber(int suraIndex, int ayaIndex) {
+    // Exemple simplifié, à adapter selon votre logique et structure
+    int hizb = ((suraIndex * 286 + ayaIndex) / (6236 / 60)).ceil();
+    return hizb;
+  }
+
   // Construction de l'entête de la sourate
   String _buildSuraHeader(String? name, String? index, String? verseCount) {
-    return '\nسورة $name\n(آيات: $verseCount)\t\tرقم السورة: $index\n';
+    return '\nسورة $name\n(آيات: $verseCount)\t\tرقم السورة: $index';
   }
 
   // Widget pour l'entête de la sourate
@@ -141,7 +202,11 @@ class _QuranPageState extends State<QuranPage> {
       child: Text(
         headerText,
         style: TextStyle(
-            fontSize: 25.0, fontWeight: FontWeight.bold, color: textColor),
+          fontSize: 30.0,
+          fontWeight: FontWeight.bold,
+          color: textColor,
+          fontFamily: 'Kitab',
+        ),
         textAlign: TextAlign.center,
         textDirection: TextDirection.rtl,
       ),
@@ -153,10 +218,26 @@ class _QuranPageState extends State<QuranPage> {
     String arabicIndex = _convertToArabicNumeral(verseIndex);
 
     return Padding(
-      padding: const EdgeInsets.only(top: 8.0, bottom: 8),
+      padding: EdgeInsets.only(top: _isAppBarVisible ? 8.0 : 40, bottom: 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Expanded(
+            child: Text(
+              verseText,
+              textAlign: TextAlign.justify,
+              style: TextStyle(
+                color: textColor,
+                fontSize: _fontSize,
+                fontFamily: 'Kitab',
+                fontWeight: FontWeight.w300,
+              ),
+              textDirection: TextDirection.rtl,
+            ),
+          ),
+          const SizedBox(
+              width: 10), // Espace entre le numéro et le texte du verset
+
           // Cercle autour du numéro du verset
           Container(
             width: 40.0,
@@ -168,17 +249,13 @@ class _QuranPageState extends State<QuranPage> {
             child: Center(
               child: Text(
                 arabicIndex,
-                style: TextStyle(color: textColor, fontSize: 20.0),
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 20.0,
+                  fontFamily: 'Kitab',
+                ),
                 textDirection: TextDirection.rtl,
               ),
-            ),
-          ),
-          SizedBox(width: 10), // Espace entre le numéro et le texte du verset
-          Expanded(
-            child: Text(
-              verseText,
-              style: TextStyle(color: textColor, fontSize: 24.0),
-              textDirection: TextDirection.rtl,
             ),
           ),
         ],
@@ -250,7 +327,22 @@ class _QuranPageState extends State<QuranPage> {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.setInt('savedPage', currentPageIndex);
     Fluttertoast.showToast(msg: 'Page sauvegardée');
-    print('Page sauvegardée: $currentPageIndex');
+  }
+
+  Future<void> _loadOnLeavePage() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    setState(() {
+      currentPageIndex = prefs.getInt('savedOnLeavePage') ?? 0;
+      print(currentPageIndex);
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Future.delayed(Duration(milliseconds: 1400), () {
+        if (pages.isNotEmpty && _pageController.hasClients) {
+          _pageController.jumpToPage(currentPageIndex);
+        }
+      });
+    });
   }
 
   @override
@@ -264,7 +356,7 @@ class _QuranPageState extends State<QuranPage> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Choisissez la couleur du texte'),
+          title: const Text('Choisissez la couleur du texte'),
           content: StatefulBuilder(
             builder: (BuildContext context, StateSetter setState) {
               return SingleChildScrollView(
@@ -289,81 +381,455 @@ class _QuranPageState extends State<QuranPage> {
         backgroundColor: color,
       ),
       title: Text(colorName),
-      onTap: () {
+      onTap: () async {
         setState(() {
           textColor = color;
-          print('La couleur actuelle du texte est: $textColor');
         });
+        // Enregistrer la couleur dans SharedPreferences
+        SharedPreferences prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('textColor', color.value);
+        loadQuranText(); // Recharge le texte du Coran
         Navigator.pop(context); // Fermer le dialogue
+      },
+    );
+  }
+
+  void _showFontSizeDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        double tempFontSize =
+            _fontSize; // Utilisation d'une variable temporaire pour la mise à jour
+
+        return StatefulBuilder(
+          builder: (BuildContext context, StateSetter setState) {
+            return AlertDialog(
+              title: const Text('Taille des écritures'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Ajustez la taille des écritures',
+                    style: TextStyle(fontSize: tempFontSize),
+                  ),
+                  Slider(
+                    min: 10.0,
+                    max: 40.0,
+                    value: tempFontSize,
+                    divisions: 10,
+                    label: tempFontSize.round().toString(),
+                    onChanged: (double value) {
+                      setState(() {
+                        tempFontSize =
+                            value; // Met à jour la taille temporaire dans le dialogue
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _fontSize =
+                          tempFontSize; // Met à jour la taille globale quand l'utilisateur confirme
+                    });
+                    loadQuranText();
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('OK'),
+                ),
+              ],
+            );
+          },
+        );
       },
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text('Coran'),
-        backgroundColor: const Color(0xFF4CADA0),
-        actions: [
-          PopupMenuButton(
-            surfaceTintColor: Colors.transparent,
-            elevation: 2,
-            itemBuilder: (BuildContext context) {
-              return [
-                PopupMenuItem(
-                  onTap: _saveCurrentPage,
-                  child: Text('Sauvegarder la page'),
+    return PopScope(
+      canPop: true,
+      onPopInvoked: (didPop) {
+        setState(() {});
+      },
+      child: Scaffold(
+        appBar: _isAppBarVisible
+            ? AppBar(
+                title: Text(
+                  currentSura ?? 'Coran',
+                  style: TextStyle(color: Colors.white),
                 ),
-                PopupMenuItem(
-                  child: Text('Couleur du texte'),
-                  onTap: () {
-                    Future.delayed(
-                      Duration(
-                          milliseconds:
-                              100), // Délai pour permettre au menu de se fermer
-                      _showColorPicker,
+                backgroundColor: Colors.black87,
+                centerTitle: true,
+                actions: [
+                  PopupMenuButton<int>(
+                    icon: Icon(
+                      Icons.more_vert,
+                      color: Colors.white,
+                    ), // Icône des trois points dans l'AppBar
+                    elevation: 5,
+                    color: Colors.black87,
+                    offset: const Offset(0,
+                        kToolbarHeight), // Positionner le menu juste en dessous de l'AppBar
+                    itemBuilder: (BuildContext context) {
+                      return [
+                        const PopupMenuItem(
+                          value: 1,
+                          child: SizedBox(
+                            width: 150.0, // Longueur fixe
+                            child: ListTile(
+                              leading:
+                                  Icon(Icons.list_alt, color: Colors.white),
+                              title: Text(
+                                'Liste des sourates',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const PopupMenuDivider(),
+                        const PopupMenuItem(
+                          value: 2,
+                          child: SizedBox(
+                            width: 150.0, // Longueur fixe
+                            child: ListTile(
+                              leading:
+                                  Icon(Icons.bookmark, color: Colors.white),
+                              title: Text(
+                                'Sauvegarder la page',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const PopupMenuDivider(),
+                        const PopupMenuItem(
+                          value: 3,
+                          child: SizedBox(
+                            width: 150.0, // Longueur fixe
+                            child: ListTile(
+                              leading: Icon(Icons.restore, color: Colors.white),
+                              title: Text(
+                                'Aller à la page sauvegardée',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const PopupMenuDivider(),
+                        const PopupMenuItem(
+                          value: 4,
+                          child: SizedBox(
+                            width: 150.0, // Longueur fixe
+                            child: ListTile(
+                              leading:
+                                  Icon(Icons.menu_book, color: Colors.white),
+                              title: Text(
+                                'Liste des pages',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const PopupMenuDivider(),
+
+                        // Ajout de l'option "Taille des écritures"
+                        const PopupMenuItem(
+                          value: 5,
+                          child: SizedBox(
+                            width: 150.0, // Longueur fixe
+                            child: ListTile(
+                              leading:
+                                  Icon(Icons.text_fields, color: Colors.white),
+                              title: Text(
+                                'Taille des écritures',
+                                style: TextStyle(color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ];
+                    },
+                    onSelected: (int value) {
+                      switch (value) {
+                        case 1:
+                          _showSuraList(); // Afficher la liste des sourates
+                          break;
+                        case 2:
+                          _saveCurrentPage(); // Sauvegarder la page
+                          break;
+                        case 3:
+                          setState(() {
+                            _loadSavedPage(); // Aller à la page sauvegardée
+                          });
+                          break;
+                        case 4:
+                          _showPageList();
+                          break;
+                        case 5:
+                          _showFontSizeDialog(); // Afficher la boîte de dialogue de taille des écritures
+                          break;
+                      }
+                    },
+                  ),
+                ],
+              )
+            : null,
+        body: GestureDetector(
+          onTap: () {
+            setState(() {
+              _isAppBarVisible = !_isAppBarVisible;
+            });
+          },
+          child: pages.isNotEmpty
+              ? PageView.builder(
+                  reverse: true,
+                  onPageChanged: _onPageChanged,
+                  controller: _pageController,
+                  itemCount: pages.length,
+                  itemBuilder: (context, index) {
+                    return Container(
+                      padding: const EdgeInsets.all(16.0),
+                      color: Theme.of(context).colorScheme.background,
+                      /*  decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF4CADA0), Color(0xFF81C784)],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                      ), */
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: pages[index]
+                              .map((widget) => DefaultTextStyle(
+                                    style: TextStyle(
+                                        color: textColor, fontSize: _fontSize),
+                                    child: widget,
+                                  ))
+                              .toList(),
+                        ),
+                      ),
                     );
                   },
-                ),
-              ];
-            },
-          ),
-        ],
-      ),
-      body: pages.isNotEmpty
-          ? PageView.builder(
-              reverse: true,
-              controller: _pageController,
-              itemCount: pages.length,
-              itemBuilder: (context, index) {
-                return Container(
-                  padding: EdgeInsets.all(16.0),
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFF4CADA0),
-                        const Color(0xFF81C784)
-                      ],
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
+                )
+              : const Center(child: CircularProgressIndicator()),
+        ),
+        bottomNavigationBar: _isAppBarVisible
+            ? BottomAppBar(
+                color: Colors.black87,
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Text(
+                    'Page ${currentPageIndex + 1}',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
+                    textAlign: TextAlign.center,
                   ),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: pages[index]
-                          .map((widget) => DefaultTextStyle(
-                                style: TextStyle(color: textColor),
-                                child: widget,
-                              ))
-                          .toList(),
+                ),
+              )
+            : null,
+      ),
+    );
+  }
+
+  // Nouvelle méthode pour récupérer la liste des sourates
+  Future<List<Map<String, String>>> _loadSuraList() async {
+    try {
+      String xmlString =
+          await rootBundle.loadString('assets/quran-uthmani.xml');
+      final document = xml.XmlDocument.parse(xmlString);
+
+      List<Map<String, String>> suraList = [];
+
+      for (var element in document.findAllElements('sura')) {
+        String suraIndex = element.getAttribute('index') ?? '';
+        String suraName = element.getAttribute('name') ?? '';
+        String suraAyat = element.getAttribute('aya') ?? '';
+        String pageStart = element.getAttribute('page') ?? '';
+
+        suraList.add({
+          'index': suraIndex,
+          'name': suraName,
+          'ayat': suraAyat,
+          'page': pageStart,
+        });
+      }
+
+      return suraList;
+    } catch (e) {
+      print('Error loading XML: $e');
+      return [];
+    }
+  }
+
+  void _navigateToSura(int index) {
+    print('Navigating to page: $index'); // Ajout d'un log pour le débogage
+    print(pages.length);
+    if (index >= 0 && index <= pages.length) {
+      _pageController.jumpToPage(index - 1);
+      Navigator.pop(context); // Ferme le dialogue après la sélection
+    } else {
+      print('Index hors limites: $index'); // Log pour index hors limites
+    }
+  }
+
+  void _showSuraList() async {
+    List<Map<String, String>> suraList = await _loadSuraList();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Liste des sourates'),
+          content: Container(
+            width: double.maxFinite,
+            child: ListView.separated(
+              separatorBuilder: (context, index) => Divider(),
+              itemCount: suraList.length,
+              itemBuilder: (BuildContext context, int index) {
+                Map<String, String> sura = suraList[index];
+                return ListTile(
+                  onTap: () {
+                    String? pageValue = suraList[index]['page'];
+                    int pageIndex = 0;
+
+                    if (pageValue != null && pageValue.isNotEmpty) {
+                      if (int.tryParse(pageValue) != null) {
+                        pageIndex = int.parse(pageValue);
+                      } else {
+                        print(
+                            'Erreur : La valeur de la page n\'est pas un nombre valide : $pageValue');
+                        return; // Gestion de l'erreur
+                      }
+                    }
+                    _navigateToSura(pageIndex);
+                  },
+                  leading: Text(
+                    sura['index'] ?? '',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontFamily: 'Kitab'),
+                  ),
+                  title: Text(
+                    'سورة ${sura['name'] ?? ''}',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontFamily: 'Kitab'),
+                  ),
+                  subtitle: Text(
+                    'Nombre de versets : ${sura['ayat']}\nPage : ${sura['page']}',
+                    style: TextStyle(
+                      fontFamily: 'Kitab',
                     ),
                   ),
                 );
               },
-            )
-          : Center(child: CircularProgressIndicator()),
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Fermer'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Fonction pour naviguer vers une page
+  void _navigateToPage(int index) {
+    if (index >= 1 && index <= 604) {
+      _pageController.jumpToPage(index - 1); // Navigue vers la page
+      Navigator.pop(context); // Ferme le dialogue après la sélection
+    } else {
+      print('Index hors limites: $index'); // Gérer les erreurs d'index
+    }
+  }
+
+// Fonction pour obtenir le nom de la sourate en fonction de la page actuelle
+  String getSuraNameForPage(int pageIndex) {
+    String? lastSuraName;
+    int lastSuraIndex = 0;
+
+    for (var entry in suraIndexes.entries) {
+      int suraStartPage = entry.key;
+      if (pageIndex >= lastSuraIndex && pageIndex < suraStartPage) {
+        return sourateNames[lastSuraIndex] ?? "Sourate inconnue";
+      }
+      lastSuraIndex = suraStartPage;
+    }
+
+    // Si la page dépasse la dernière sourate dans la liste
+    return sourateNames[lastSuraIndex] ?? "Sourate inconnue";
+  }
+
+// Fonction pour afficher la liste des pages
+  void _showPageList() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Liste des pages'),
+          content: Container(
+            width: double.maxFinite,
+            child: ListView.builder(
+              itemCount: 604, // Nombre total de pages dans le Coran
+              itemBuilder: (BuildContext context, int index) {
+                int pageNumber = index + 1;
+
+                // Obtenir le nom de la sourate pour la page actuelle
+                String suraName = getSuraNameForPage(pageNumber);
+                String suraIndex = suraIndexes.keys
+                    .firstWhere((key) => suraIndexes[key] == suraName)
+                    .toString();
+
+                return ListTile(
+                  onTap: () {
+                    _navigateToPage(
+                        pageNumber); // Naviguer vers la page sélectionnée
+                  },
+                  leading: Text(
+                    textAlign: TextAlign.center,
+                    'Page $pageNumber',
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Kitab'),
+                  ),
+                  title: Text(
+                    textAlign: TextAlign.center,
+                    'سورة $suraName',
+                    style: TextStyle(
+                      fontFamily: 'Kitab',
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  /*  subtitle: Text(
+                    'Index de la sourate : $suraIndex',
+                    style: TextStyle(fontFamily: 'Kitab'),
+                  ), */
+                );
+              },
+            ),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: const Text('Fermer'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }
